@@ -1,5 +1,5 @@
 {
-  description = "A flake for ESP32S3";
+  description = "A flake for ESP32S3 and build Docker environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -25,7 +25,6 @@
     }:
     {
       overlays.default = import ./nix/overlay.nix;
-
     }
     // flake-utils.lib.eachDefaultSystem (
       system:
@@ -37,6 +36,8 @@
         ];
 
         pkgs = import nixpkgs { inherit system overlays; };
+
+        # Combine Rust ESP toolchain and source
         rust_toolchain_esp =
           with fenix.packages.${system};
           combine [
@@ -44,20 +45,37 @@
             pkgs.rust-src-esp
           ];
 
+        # Toolchain dependencies
+        devDeps = with pkgs; [
+          rust_toolchain_esp
+          espflash
+          esp-dev.packages.${system}.esp-idf-esp32s3
+          git
+          cacert
+        ];
       in
       {
-        # Defines a development shell named 'default'
         formatter = pkgs.nixpkgs-fmt;
+
+        # Development shell
         devShells.default = pkgs.mkShell {
           name = "Development environment for ESP32S3";
-          nativeBuildInputs = with pkgs; [
-            # rust
-            rust_toolchain_esp
+          nativeBuildInputs = devDeps;
+        };
 
-            # esp
-            espflash
-            esp-dev.packages.${system}.esp-idf-esp32s3
-          ];
+        # Docker image build
+        packages.dockerImage = pkgs.dockerTools.buildLayeredImage {
+          name = "ghcr.io/alignof/esp32s3_led_blink";
+          tag = "latest";
+          contents = devDeps;
+          config = {
+            Cmd = [ "/bin/sh" ];
+            Env = [
+              "PATH=/bin:/usr/bin"
+              "USER=root"
+            ];
+            WorkingDir = "/work";
+          };
         };
       }
     );

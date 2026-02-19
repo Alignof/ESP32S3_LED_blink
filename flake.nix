@@ -76,17 +76,41 @@
                 pkgs.bashInteractive
                 pkgs.coreutils
                 pkgs.stdenv.cc
+
+                # for VScode dev container
+                pkgs.gnutar
+                pkgs.gzip
+                pkgs.gnused
+                pkgs.gnugrep
+                pkgs.stdenv.cc.cc.lib
               ];
-            pathsToLink = [ "/bin" ];
+            pathsToLink = [
+              "/bin"
+              "/lib"
+            ];
             ignoreCollisions = true;
           };
-          extraCommands = "mkdir -m 0777 tmp";
+          extraCommands = ''
+            mkdir -m 0777 tmp
+            mkdir -p etc
+            mkdir -p usr/bin lib64
+
+            ln -sf /bin/env usr/bin/env
+            ln -s ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 lib64/ld-linux-x86-64.so.2
+
+            mkdir -p etc
+            echo "root:x:0:0:root:/root:/bin/bash" > etc/passwd
+            echo "root:x:0:" > etc/group
+          '';
           config = {
             Cmd = [ "${pkgs.bashInteractive}/bin/bash" ];
             Env = [
-              "PATH=/bin:/usr/bin"
+              "PATH=/bin:/usr/bin:/sbin"
               "USER=root"
               "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+              "COREUTILS=${pkgs.coreutils}"
+              "LD_LIBRARY_PATH=${pkgs.stdenv.cc.cc.lib}/lib"
+              "LIBCLANG_PATH=${pkgs.libclang.lib}/lib/"
             ];
             WorkingDir = "/work";
           };

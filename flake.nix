@@ -49,7 +49,7 @@
         devDeps = with pkgs; [
           rust_toolchain_esp
           espflash
-          esp-dev.packages.${system}.esp-idf-esp32s3
+          esp-idf-xtensa
           git
           cacert
         ];
@@ -64,15 +64,29 @@
         };
 
         # Docker image build
-        packages.dockerImage = pkgs.dockerTools.buildLayeredImage {
+        packages.dockerImage = pkgs.dockerTools.buildImage {
           name = "ghcr.io/alignof/esp32s3_led_blink";
           tag = "latest";
-          contents = devDeps;
+          copyToRoot = pkgs.buildEnv {
+            name = "esp32s3-build-tools";
+            paths =
+              devDeps
+              ++ (builtins.attrValues pkgs.esp-idf-xtensa.tools)
+              ++ [
+                pkgs.bashInteractive
+                pkgs.coreutils
+                pkgs.stdenv.cc
+              ];
+            pathsToLink = [ "/bin" ];
+            ignoreCollisions = true;
+          };
+          extraCommands = "mkdir -m 0777 tmp";
           config = {
-            Cmd = [ "/bin/sh" ];
+            Cmd = [ "${pkgs.bashInteractive}/bin/bash" ];
             Env = [
               "PATH=/bin:/usr/bin"
               "USER=root"
+              "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
             ];
             WorkingDir = "/work";
           };

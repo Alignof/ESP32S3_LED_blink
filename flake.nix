@@ -73,7 +73,6 @@
               devDeps
               ++ (builtins.attrValues pkgs.esp-idf-xtensa.tools)
               ++ [
-                pkgs.bashInteractive
                 pkgs.coreutils
                 pkgs.stdenv.cc
 
@@ -83,33 +82,40 @@
                 pkgs.gnused
                 pkgs.gnugrep
                 pkgs.stdenv.cc.cc.lib
+                pkgs.glibc.bin
+              ]
+              ++ [
+                pkgs.dockerTools.binSh
+                pkgs.dockerTools.caCertificates
+                pkgs.dockerTools.fakeNss
               ];
             pathsToLink = [
               "/bin"
-              "/lib"
+              "/etc"
             ];
             ignoreCollisions = true;
           };
           extraCommands = ''
             mkdir -m 0777 tmp
-            mkdir -p etc
-            mkdir -p usr/bin lib64
 
-            ln -sf /bin/env usr/bin/env
+            mkdir -p lib64
             ln -s ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 lib64/ld-linux-x86-64.so.2
 
-            mkdir -p etc
-            echo "root:x:0:0:root:/root:/bin/bash" > etc/passwd
-            echo "root:x:0:" > etc/group
+            mkdir -p lib
+            ln -s ${pkgs.glibc}/lib/* lib/
+            ln -s ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so* lib/
+
+            mkdir -p usr/bin
+            ln -s /bin/env usr/bin/env
+            ln -s /lib usr/lib
           '';
           config = {
-            Cmd = [ "${pkgs.bashInteractive}/bin/bash" ];
+            Cmd = [ "/bin/sh" ];
             Env = [
               "PATH=/bin:/usr/bin:/sbin"
-              "USER=root"
               "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
               "COREUTILS=${pkgs.coreutils}"
-              "LD_LIBRARY_PATH=${pkgs.stdenv.cc.cc.lib}/lib"
+              "LD_LIBRARY_PATH=/lib:/usr/lib:${pkgs.stdenv.cc.cc.lib}/lib"
               "LIBCLANG_PATH=${pkgs.libclang.lib}/lib/"
             ];
             WorkingDir = "/work";

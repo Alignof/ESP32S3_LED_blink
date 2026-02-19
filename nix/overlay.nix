@@ -14,4 +14,10 @@ final: prev: {
       "xtensa-esp-elf-gdb"
     ];
   };
+  esp-idf-esp32s3 = final.esp-idf-xtensa.override {
+    toolsToInclude = [
+      "xtensa-esp-elf"
+      "xtensa-esp-elf-gdb"
+    ];
+  };
 }

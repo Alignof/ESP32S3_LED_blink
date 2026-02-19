@@ -49,7 +49,7 @@
         devDeps = with pkgs; [
           rust_toolchain_esp
           espflash
-          esp-idf-xtensa
+          esp-idf-esp32s3
           git
           cacert
         ];

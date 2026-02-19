@@ -64,51 +64,57 @@
         };
 
         # Docker image build
-        packages.dockerImage = pkgs.dockerTools.buildImage {
+        packages.dockerImage = pkgs.dockerTools.buildLayeredImage {
           name = "ghcr.io/alignof/esp32s3_led_blink";
           tag = "latest";
-          copyToRoot = pkgs.buildEnv {
-            name = "esp32s3-build-tools";
-            paths =
-              devDeps
-              ++ (builtins.attrValues pkgs.esp-idf-xtensa.tools)
-              ++ [
-                pkgs.coreutils
-                pkgs.stdenv.cc
 
-                # for VScode dev container
-                pkgs.gnutar
-                pkgs.gzip
-                pkgs.gnused
-                pkgs.gnugrep
-                pkgs.stdenv.cc.cc.lib
-                pkgs.glibc.bin
-              ]
-              ++ [
-                pkgs.dockerTools.binSh
-                pkgs.dockerTools.caCertificates
-                pkgs.dockerTools.fakeNss
-              ];
-            pathsToLink = [
-              "/bin"
-              "/etc"
+          contents =
+            devDeps
+            ++ (builtins.attrValues pkgs.esp-idf-xtensa.tools)
+            ++ [
+              pkgs.coreutils
+              pkgs.stdenv.cc
+
+              # for VScode dev container
+              pkgs.gnutar
+              pkgs.gzip
+              pkgs.gnused
+              pkgs.gnugrep
+              pkgs.stdenv.cc.cc.lib
+              pkgs.glibc.bin
+
+              # Minimal system basics
+              pkgs.dockerTools.usrBinEnv
+              pkgs.dockerTools.binSh
+              pkgs.dockerTools.caCertificates
+              pkgs.dockerTools.fakeNss
             ];
-            ignoreCollisions = true;
-          };
-          extraCommands = ''
-            mkdir -m 0777 tmp
 
-            mkdir -p lib64
-            ln -s ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 lib64/ld-linux-x86-64.so.2
+          fakeRootCommands = ''
+            mkdir -p -m 0777 ./tmp
+            mkdir -p ./etc
 
-            mkdir -p lib
-            ln -s ${pkgs.glibc}/lib/* lib/
-            ln -s ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so* lib/
+            echo "/lib" > ./etc/ld.so.conf
+            echo "/usr/lib" >> ./etc/ld.so.conf
 
-            mkdir -p usr/bin
-            ln -s /bin/env usr/bin/env
-            ln -s /lib usr/lib
+            mkdir -p ./lib64
+            ln -sf ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 ./lib64/ld-linux-x86-64.so.2
+
+            mkdir -p ./lib
+            ln -sf ${pkgs.glibc}/lib/* ./lib/
+            ln -sf ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so* ./lib/
+            ln -sf /lib ./usr/lib
+
+            touch ./etc/ld.so.cache
+            mv ./bin/ldconfig ./bin/ldconfig.real
+            echo '#!/bin/sh' > ./bin/ldconfig
+            echo 'exec /bin/ldconfig.real -C /etc/ld.so.cache "$@"' >> ./bin/ldconfig
+            chmod +x ./bin/ldconfig
+
+            mkdir -p ./sbin
+            ln -sf /bin/ldconfig ./sbin/ldconfig
           '';
+
           config = {
             Cmd = [ "/bin/sh" ];
             Env = [
@@ -121,6 +127,7 @@
             WorkingDir = "/work";
           };
         };
+
       }
     );
 }

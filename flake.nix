@@ -49,7 +49,7 @@
         devDeps = with pkgs; [
           rust_toolchain_esp
           espflash
-          esp-idf-esp32s3
+          esp-idf-xtensa
           git
           cacert
         ];
@@ -69,15 +69,18 @@
           tag = "latest";
           copyToRoot = pkgs.buildEnv {
             name = "esp32s3-build-tools";
-            paths = devDeps ++ [
-              pkgs.bashInteractive
-              pkgs.coreutils
-              pkgs.stdenv.cc
-            ];
+            paths =
+              devDeps
+              ++ (builtins.attrValues pkgs.esp-idf-xtensa.tools)
+              ++ [
+                pkgs.bashInteractive
+                pkgs.coreutils
+                pkgs.stdenv.cc
+              ];
             pathsToLink = [ "/bin" ];
+            ignoreCollisions = true;
           };
           extraCommands = "mkdir -m 0777 tmp";
-
           config = {
             Cmd = [ "${pkgs.bashInteractive}/bin/bash" ];
             Env = [

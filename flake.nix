@@ -51,7 +51,6 @@
           esp-idf-s3-minimal.tools.xtensa-esp-elf-gdb
           espflash
           gitMinimal
-          cacert
         ];
       in
       {
@@ -89,7 +88,9 @@
           fakeRootCommands = ''
             mkdir -p -m 0777 ./tmp
 
-            mkdir -p ./etc
+            mkdir -p ./etc/ssl/certs
+            cp ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ./etc/ssl/certs
+
             echo "root:x:0:0:root:/root:/bin/sh" > ./etc/passwd
             echo "root:x:0:" > ./etc/group
 

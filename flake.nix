@@ -22,6 +22,7 @@
       flake-utils,
       fenix,
       esp-dev,
+      ...
     }:
     {
       overlays.default = import ./nix/overlay.nix;
@@ -34,30 +35,29 @@
           esp-dev.overlays.default
           self.overlays.default
         ];
-
         pkgs = import nixpkgs { inherit system overlays; };
 
         # Combine Rust ESP toolchain and source
-        rust_toolchain_esp =
-          with fenix.packages.${system};
-          combine [
-            pkgs.rust-esp
-            pkgs.rust-src-esp
-          ];
+        rust_toolchain_esp = fenix.packages.${system}.combine [
+          pkgs.rust-esp
+          pkgs.rust-src-esp
+        ];
 
-        # Toolchain dependencies
+        # Toolchain dependencies used in both devShell and Docker image
         devDeps = with pkgs; [
           rust_toolchain_esp
+          esp-idf-s3-minimal.tools.xtensa-esp-elf
+          esp-idf-s3-minimal.tools.esp32ulp-elf
+          esp-idf-s3-minimal.tools.xtensa-esp-elf-gdb
           espflash
-          esp-idf-xtensa
-          git
+          gitMinimal
           cacert
         ];
       in
       {
         formatter = pkgs.nixpkgs-fmt;
 
-        # Development shell
+        # Development shell for local use
         devShells.default = pkgs.mkShell {
           name = "Development environment for ESP32S3";
           nativeBuildInputs = devDeps;
@@ -67,33 +67,33 @@
         packages.dockerImage = pkgs.dockerTools.buildLayeredImage {
           name = "ghcr.io/alignof/esp32s3_led_blink";
           tag = "latest";
+          maxLayers = 100; # Merge small layers to improve performance
 
-          contents =
-            devDeps
-            ++ (builtins.attrValues pkgs.esp-idf-xtensa.tools)
-            ++ [
-              pkgs.coreutils
-              pkgs.stdenv.cc
+          contents = devDeps ++ [
+            pkgs.coreutils
+            pkgs.stdenv.cc
 
-              # for VScode dev container
-              pkgs.gnutar
-              pkgs.gzip
-              pkgs.gnused
-              pkgs.gnugrep
-              pkgs.stdenv.cc.cc.lib
-              pkgs.glibc.bin
+            # Utilities required for VSCode dev container support
+            pkgs.gnutar
+            pkgs.gzip
+            pkgs.gnused
+            pkgs.gnugrep
+            pkgs.stdenv.cc.cc.lib
 
-              # Minimal system basics
-              pkgs.dockerTools.usrBinEnv
-              pkgs.dockerTools.binSh
-              pkgs.dockerTools.caCertificates
-              pkgs.dockerTools.fakeNss
-            ];
+            # Minimal system basics
+            pkgs.dockerTools.usrBinEnv
+            pkgs.dockerTools.binSh
+            # pkgs.dockerTools.fakeNss
+          ];
 
           fakeRootCommands = ''
             mkdir -p -m 0777 ./tmp
-            mkdir -p ./etc
 
+            mkdir -p ./etc
+            echo "root:x:0:0:root:/root:/bin/sh" > ./etc/passwd
+            echo "root:x:0:" > ./etc/group
+
+            # Dynamic linker configuration for standard paths
             echo "/lib" > ./etc/ld.so.conf
             echo "/usr/lib" >> ./etc/ld.so.conf
 
@@ -105,11 +105,14 @@
             ln -sf ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so* ./lib/
             ln -sf /lib ./usr/lib
 
+            # Handle ldconfig for applications that expect it
             touch ./etc/ld.so.cache
-            mv ./bin/ldconfig ./bin/ldconfig.real
-            echo '#!/bin/sh' > ./bin/ldconfig
-            echo 'exec /bin/ldconfig.real -C /etc/ld.so.cache "$@"' >> ./bin/ldconfig
-            chmod +x ./bin/ldconfig
+            if [ -f ./bin/ldconfig ]; then
+              mv ./bin/ldconfig ./bin/ldconfig.real
+              echo '#!/bin/sh' > ./bin/ldconfig
+              echo 'exec /bin/ldconfig.real -C /etc/ld.so.cache "$@"' >> ./bin/ldconfig
+              chmod +x ./bin/ldconfig
+            fi
 
             mkdir -p ./sbin
             ln -sf /bin/ldconfig ./sbin/ldconfig
@@ -120,14 +123,11 @@
             Env = [
               "PATH=/bin:/usr/bin:/sbin"
               "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-              "COREUTILS=${pkgs.coreutils}"
               "LD_LIBRARY_PATH=/lib:/usr/lib:${pkgs.stdenv.cc.cc.lib}/lib"
-              "LIBCLANG_PATH=${pkgs.libclang.lib}/lib/"
             ];
             WorkingDir = "/work";
           };
         };
-
       }
     );
 }

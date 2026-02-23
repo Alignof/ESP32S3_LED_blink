@@ -83,12 +83,15 @@
             # Minimal system basics
             pkgs.dockerTools.usrBinEnv
             pkgs.dockerTools.binSh
-            pkgs.dockerTools.fakeNss
+            # pkgs.dockerTools.fakeNss
           ];
 
           fakeRootCommands = ''
             mkdir -p -m 0777 ./tmp
+
             mkdir -p ./etc
+            echo "root:x:0:0:root:/root:/bin/sh" > ./etc/passwd
+            echo "root:x:0:" > ./etc/group
 
             # Dynamic linker configuration for standard paths
             echo "/lib" > ./etc/ld.so.conf

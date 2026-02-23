@@ -2,7 +2,7 @@ name: Docker Publish
 
 on:
   push:
-    branches: ["master"]
+    branches: ["master", "fix/container_image"]
   workflow_dispatch:
 
 env:
